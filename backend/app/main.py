@@ -1,0 +1,33 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import get_settings
+from app.routers import health
+
+settings = get_settings()
+
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+# CORS — allows your Next.js frontend to talk to this backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # frontend dev URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register routers
+app.include_router(health.router, prefix="/api/v1")
+
+
+@app.get("/", tags=["Root"])
+def root():
+    return {
+        "message": "AI Research Workspace API",
+        "docs": "/docs",
+    }
