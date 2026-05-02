@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Uploaded files
+uploads/*
+!uploads/.gitkeep
