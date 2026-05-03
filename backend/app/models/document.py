@@ -41,3 +41,31 @@ class DocumentProcessResponse(BaseModel):
     status: str
     message: str
     processed_at: datetime
+
+class ChunkData(BaseModel):
+    chunk_index: int
+    chunk_id: str
+    file_id: str
+    text: str
+    token_count: int
+    page_number: Optional[int] = None
+
+
+class ChunkStats(BaseModel):
+    total_chunks: int
+    total_tokens: int
+    avg_tokens_per_chunk: float
+    min_tokens: int
+    max_tokens: int
+    chunk_size_config: int
+    chunk_overlap_config: int
+
+
+class DocumentChunkResponse(BaseModel):
+    file_id: str
+    original_filename: str
+    stats: ChunkStats
+    chunks: List[ChunkData]
+    status: str
+    message: str
+    chunked_at: datetime
