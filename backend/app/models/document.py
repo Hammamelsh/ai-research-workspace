@@ -69,3 +69,20 @@ class DocumentChunkResponse(BaseModel):
     status: str
     message: str
     chunked_at: datetime
+
+class EmbedStats(BaseModel):
+    chunks_embedded: int
+    stored_count: int
+    collection_name: str
+    total_in_collection: int
+    embedding_model: str
+    embedding_dimensions: int
+
+
+class DocumentEmbedResponse(BaseModel):
+    file_id: str
+    original_filename: str
+    stats: EmbedStats
+    status: str
+    message: str
+    embedded_at: datetime

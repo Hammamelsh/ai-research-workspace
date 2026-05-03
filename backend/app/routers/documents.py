@@ -23,7 +23,19 @@ from app.models.document import (
     ChunkStats,
 )
 router = APIRouter()
-
+from app.services.embedding import embed_chunks, embed_text
+from app.services.vector_store import store_embeddings
+from app.models.document import (
+    DocumentUploadResponse,
+    DocumentProcessResponse,
+    DocumentChunkResponse,
+    DocumentEmbedResponse,
+    PageContent,
+    DocumentMetadata,
+    ChunkData,
+    ChunkStats,
+    EmbedStats,
+)
 
 @router.post(
     "/upload",
@@ -209,4 +221,90 @@ async def chunk_document(
             f"Average {stats['avg_tokens_per_chunk']} tokens per chunk."
         ),
         chunked_at=datetime.utcnow()
+    )
+
+@router.post(
+    "/{file_id}/embed",
+    response_model=DocumentEmbedResponse,
+    status_code=200,
+    tags=["Documents"],
+    summary="Embed and store chunks in vector store",
+)
+async def embed_document(
+    file_id: str,
+    chunk_size: int = 500,
+    chunk_overlap: int = 50,
+    settings: Settings = Depends(get_settings)
+):
+    """
+    Pipeline so far:
+    upload → extract → chunk → embed → store ← YOU ARE HERE
+
+    This endpoint runs the full pipeline in one call:
+    1. Find file
+    2. Extract text
+    3. Chunk text
+    4. Embed each chunk
+    5. Store in ChromaDB
+    6. Return stats
+    """
+
+    # Find the file
+    upload_dir = "uploads"
+    matching_files = [
+        f for f in os.listdir(upload_dir)
+        if f.startswith(file_id)
+    ]
+
+    if not matching_files:
+        raise HTTPException(status_code=404, detail=f"No file found with ID: {file_id}")
+
+    file_path = os.path.join(upload_dir, matching_files[0])
+    original_filename = matching_files[0][len(file_id) + 1:]
+
+    # Extract
+    try:
+        extraction_result = extract_text_from_pdf(file_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+
+    if not extraction_result["full_text"].strip():
+        raise HTTPException(status_code=422, detail="No text extracted. May be a scanned PDF.")
+
+    # Chunk
+    chunks = chunk_text(
+        text=extraction_result["full_text"],
+        file_id=file_id,
+        original_filename=original_filename,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+
+    # Embed
+    chunks_with_embeddings = embed_chunks(chunks)
+
+    # Store
+    store_result = store_embeddings(chunks_with_embeddings)
+
+    # Get embedding dimension from first chunk
+    embedding_dims = len(chunks_with_embeddings[0]["embedding"])
+
+    return DocumentEmbedResponse(
+        file_id=file_id,
+        original_filename=original_filename,
+        stats=EmbedStats(
+            chunks_embedded=len(chunks),
+            stored_count=store_result["stored_count"],
+            collection_name=store_result["collection_name"],
+            total_in_collection=store_result["total_in_collection"],
+            embedding_model=settings.embedding_model,
+            embedding_dimensions=embedding_dims,
+        ),
+        status="embedded",
+        message=(
+            f"Successfully embedded {len(chunks)} chunks "
+            f"using {settings.embedding_model}. "
+            f"Stored in collection '{store_result['collection_name']}'."
+        ),
+        embedded_at=datetime.utcnow()
     )
