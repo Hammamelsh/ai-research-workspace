@@ -12,7 +12,16 @@ from app.models.document import (
     DocumentMetadata,
 )
 from app.core.config import get_settings, Settings
-
+from app.services.chunking import chunk_text, get_chunk_stats
+from app.models.document import (
+    DocumentUploadResponse,
+    DocumentProcessResponse,
+    DocumentChunkResponse,
+    PageContent,
+    DocumentMetadata,
+    ChunkData,
+    ChunkStats,
+)
 router = APIRouter()
 
 
@@ -117,4 +126,87 @@ async def process_document(
         status="processed",
         message=message,
         processed_at=datetime.utcnow()
+    )
+@router.post(
+    "/{file_id}/chunk",
+    response_model=DocumentChunkResponse,
+    status_code=200,
+    tags=["Documents"],
+    summary="Chunk extracted text from a PDF",
+)
+async def chunk_document(
+    file_id: str,
+    chunk_size: int = 500,
+    chunk_overlap: int = 50,
+    settings: Settings = Depends(get_settings)
+):
+    """
+    Pipeline so far:
+    upload → extract → chunk ← YOU ARE HERE
+    
+    This endpoint:
+    1. Finds the uploaded file
+    2. Extracts text (reuses extraction service)
+    3. Chunks the text with overlap
+    4. Returns chunks with metadata and statistics
+    
+    chunk_size and chunk_overlap are query parameters
+    so you can experiment without changing code:
+    POST /api/v1/documents/{id}/chunk?chunk_size=300&chunk_overlap=30
+    """
+
+    # Find file on disk
+    upload_dir = "uploads"
+    matching_files = [
+        f for f in os.listdir(upload_dir)
+        if f.startswith(file_id)
+    ]
+
+    if not matching_files:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No file found with ID: {file_id}"
+        )
+
+    file_path = os.path.join(upload_dir, matching_files[0])
+    original_filename = matching_files[0][len(file_id) + 1:]
+
+    # Extract text
+    try:
+        extraction_result = extract_text_from_pdf(file_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+
+    # Check we actually have text to chunk
+    if not extraction_result["full_text"].strip():
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No text could be extracted from this PDF. "
+                "It may be a scanned document. OCR support coming in Phase 2."
+            )
+        )
+
+    # Chunk the text
+    chunks = chunk_text(
+        text=extraction_result["full_text"],
+        file_id=file_id,
+        original_filename=original_filename,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+
+    stats = get_chunk_stats(chunks)
+
+    return DocumentChunkResponse(
+        file_id=file_id,
+        original_filename=original_filename,
+        stats=ChunkStats(**stats),
+        chunks=[ChunkData(**c) for c in chunks],
+        status="chunked",
+        message=(
+            f"Successfully created {stats['total_chunks']} chunks. "
+            f"Average {stats['avg_tokens_per_chunk']} tokens per chunk."
+        ),
+        chunked_at=datetime.utcnow()
     )
