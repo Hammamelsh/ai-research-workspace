@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     environment: str = "development"
     debug: bool = False
 
+    # Embedding config
+    embedding_model: str = "all-MiniLM-L6-v2"
+    chroma_db_path: str = "./chroma_db"
+
     class Config:
         env_file = ".env"
 
