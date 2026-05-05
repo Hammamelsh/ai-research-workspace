@@ -8,9 +8,11 @@ class Settings(BaseSettings):
     environment: str = "development"
     debug: bool = False
 
-    # Embedding config
     embedding_model: str = "all-MiniLM-L6-v2"
     chroma_db_path: str = "./chroma_db"
+
+    groq_api_key: str = ""
+    groq_model: str = "llama3-8b-8192"
 
     class Config:
         env_file = ".env"
