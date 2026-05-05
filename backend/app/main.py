@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
-from app.routers import health, documents        # ← added documents
+from app.routers import health, documents, query    # add query
 
 settings = get_settings()
 
@@ -21,7 +21,8 @@ app.add_middleware(
 )
 
 app.include_router(health.router, prefix="/api/v1")
-app.include_router(documents.router, prefix="/api/v1/documents")   # ← added
+app.include_router(documents.router, prefix="/api/v1/documents")
+app.include_router(query.router, prefix="/api/v1/query")    # add this
 
 @app.get("/", tags=["Root"])
 def root():

@@ -26,7 +26,7 @@ def embed_text(text: str) -> List[float]:
     """
     Convert a single string into an embedding vector.
 
-    Returns a list of floats e.g. [0.23, -0.81, 0.45, ...]
+     Returns a list of floats e.g. [0.23, -0.81, 0.45, ...]
     The length of this list is always 384 for all-MiniLM-L6-v2
     This fixed length is called the embedding dimension.
     """
